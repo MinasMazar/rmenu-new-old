@@ -1,0 +1,27 @@
+require "rmenu"
+require "thor"
+
+class RMenuCLI < Thor
+
+  no_commands do
+
+    def config
+      @config ||= YAML.load_file(File.expand_path(File.join("~", ".rmenu.yml")))
+    end
+
+  end
+
+  desc "start", "Launch Rmenu daemon"
+  def start
+    rmenu_daemon = RMenu::Daemon.new config
+    begin
+      rmenu_daemon.start
+      rmenu_daemon.listening_thread.join
+    rescue Interrupt
+      RMenu::LOGGER.info "Interrupt cathed..exiting"
+    end
+  end
+
+end
+
+RMenuCLI.start ARGV
