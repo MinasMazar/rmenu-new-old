@@ -17,6 +17,8 @@ module RMenu
       self.config = yml_config.merge config
       self.config[:menu] ||= { base: RMenu::Menu::BASE }
       @menu = self.config[:menu] && self.config[:menu][:base]
+      @menu += RMenu::Menu::BASE
+      @menu.uniq!
     end
 
     def start
@@ -38,7 +40,10 @@ module RMenu
           instance_eval(&item[:key])
         end
       elsif item[:key].is_a? Array
-        proc(pick(item[:label], item[:key]))
+        last_menu= self.menu
+        self.menu = item[:key]
+        proc(pick(item[:label], menu))
+        self.menu = last_menu
       elsif item[:key].is_a?(String) && item[:key].strip != ""
         str = replace_tokens item[:key]
         str = replace_blocks str
@@ -58,9 +63,9 @@ module RMenu
         break unless md[1] || md[2]
         input = get_string(md[2])
         return if input == ""
+        LOGGER.debug "Command interpolated with input tokens: #{replaced_cmd}"
         replaced_cmd.sub!(md[0], input)
       end
-      LOGGER.debug "Command interpolated with input tokens: #{replaced_cmd}"
       replaced_cmd
     end
 
@@ -71,11 +76,11 @@ module RMenu
           break unless md[1] || md[2]
           evaluated_string = self.instance_eval(md[2]).to_s
           return if evaluated_string == nil
+          LOGGER.debug "Command interpolated with eval blocks: #{replaced_cmd}"
           replaced_cmd.sub!(md[0], evaluated_string)
         end
         replaced_cmd
       end
-      LOGGER.debug "Command interpolated with eval blocks: #{replaced_cmd}"
       replaced_cmd
     end
 

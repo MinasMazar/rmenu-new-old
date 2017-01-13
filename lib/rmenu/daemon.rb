@@ -18,11 +18,12 @@ module RMenu
           end
         end
       end
+      self
     end
 
     def stop
       self.listening = false
-      listening.thread.kill
+      listening_thread && listening_thread.kill
       save_config if config[:save_on_quit]
     end
 
