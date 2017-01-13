@@ -54,13 +54,11 @@ module RMenu
         str = replace_tokens item[:key]
         str = replace_blocks str
         if md = str.match(/^:(.+)/)
-          catch_and_notify_exception do
-            instance_eval md[1]
-          end
+          string_eval md[1]
         elsif md = str.match(/^(http(s?):\/\/.+)/)
           open_url md[1]
-        else
-          system_exec str
+        elsif md = str.match(/^!(.+)/)
+          system_exec md[1]
         end
       end
     end
@@ -147,12 +145,16 @@ module RMenu
       system_exec config[:web_browser], url
     end
 
+    def string_eval(str)
+      catch_and_notify_exception { instance_eval str }
+    end
+
     def system_exec(*cmd)
       cmd << "&"
       cmd = cmd.join " "
       LOGGER.debug "RMenu.system_exec: [#{cmd}]"
       catch_and_notify_exception do
-        system cmd
+        system "sh -c #{cmd}"
       end
     end
 
