@@ -1,32 +1,25 @@
 require "rmenu/dmenu_wrapper"
+require "rmenu/util"
 require "rmenu/menu/base"
 require "yaml"
 
 module RMenu
   class Base
 
-    attr_accessor :config
+    include Util::Methods
+
+    attr_accessor :conf
     attr_accessor :root_menu
     attr_accessor :current_menu
 
-    def initialize(config)
-      yml_config = {}
-      if config[:config_file]
-        yml_config = YAML.load_file config[:config_file]
+    def initialize(configuration)
+      yml_conf = {}
+      if configuration[:conf_file]
+        yml_conf = YAML.load_file configuration[:conf_file]
       end
-      self.config = yml_config.merge config
-      build_menu
-    end
-
-    def build_menu(force_reset = false)
-      self.config[:menu] ||= {}
-      self.config[:menu][:main] = Set.new(RMenu::Menu::MAIN) if force_reset
-      self.current_menu = self.config[:menu][:main]
+      self.conf = yml_conf.merge configuration
+      self.current_menu = self.conf[:menu] && self.conf[:menu][:main] || Menu::FALLBACK
       self.root_menu = current_menu
-    end
-
-    def build_menu!
-      build_menu true
     end
 
     def start
@@ -34,19 +27,21 @@ module RMenu
     end
 
     def pick(prompt, items, other_params = {})
-      _dmenu = dmenu
-      _dmenu.set_params other_params
-      _dmenu.prompt = prompt
-      _dmenu.items = items.to_a
-      _dmenu.items = _dmenu.items.map { |i| i.merge label: ( i[:marked] == true ? "*#{i[:label]}*" : i[:label] ) }
-      _dmenu.items = _dmenu.items.sort_by { |i| i[:order] || 50 }
-      _item = _dmenu.get_item
-      _item = items.find { |i| i[:key] == _item[:key] } || _item
+      dmenu = dmenu_instance
+      dmenu.set_params other_params
+      dmenu.prompt = prompt
+      dmenu.items = items
+      dmenu.items = dmenu.items.map { |i| i.merge label: ( i[:marked] == true ? "*#{i[:label]}*" : i[:label] ) }
+      dmenu.items = dmenu.items.sort_by { |i| i[:order] || 50 }
+      item = dmenu.get_item
+      item = items.find { |i| i[:key] == item[:key] } || item
+      LOGGER.debug "Picked item #{item.inspect}"
+      yield item, self if block_given?
+      item
     end
 
     def proc(item)
       raise ArgumentError.new "No valid item passed as argument (must be a Hash)" unless item.is_a? Hash
-      LOGGER.debug "Picked item #{item.inspect}"
       if item[:key].is_a? Symbol
         send item[:key]
       elsif item[:key].is_a? Proc
@@ -54,33 +49,36 @@ module RMenu
           instance_eval(&item[:key])
         end
       elsif item[:key].is_a? Array
-        item[:key] = Set.new item[:key]
-        proc item
-      elsif item[:key].is_a? Set
         last_menu = current_menu
         self.current_menu = item[:key]
-        proc(pick(item[:label], current_menu))
+        proc(pick(item[:label], current_menu, item))
         self.current_menu = last_menu
       elsif item[:key].is_a?(String) && item[:key].strip != ""
-        str = replace_tokens item[:key]
-        str = replace_blocks str
-        if md = str.match(/^:\s*(.+)/)
+        if md = item[:key].match(/^:\s*(.+)/)
           string_eval md[1]
-        elsif md = str.match(/^(http(s?):\/\/.+)/)
-          open_url md[1]
-        elsif md = str.match(/^!\s*(.+)/)
-          system_exec md[1]
-        elsif config[:exec_str]
-          system_exec str
+        else
+          str = replace_tokens item[:key]
+          str = replace_blocks str
+          if md = str.match(/^\s*(http(s?):\/\/.+)/)
+            open_url md[1]
+          elsif md = str.match(/\s*!(.+)/)
+            term_exec = str.match(/;\s*$/)
+            cmd = [ ]
+            cmd << conf[:terminal_exec] if term_exec
+            cmd << md[1]
+            system_exec cmd
+          elsif str != ""
+            proc key: "!#{str}" if conf[:force_exec]
+          end
         end
       end
     end
 
     def replace_tokens(cmd)
-      replaced_cmd = cmd.clone
+      replaced_cmd = cmd.dup
       while md = replaced_cmd.match(/(__(.+?)__)/)
         break unless md[1] || md[2]
-        input = get_string(md[2])
+        input = pick_string(md[2])
         return "" if input == ""
         replaced_cmd.sub!(md[0], input)
       end
@@ -89,7 +87,7 @@ module RMenu
     end
 
     def replace_blocks(cmd)
-      replaced_cmd = cmd.clone
+      replaced_cmd = cmd.dup
       catch_and_notify_exception do
         while md = replaced_cmd.match(/(\{([^\{\}]+?)\})/)
           break unless md[1] || md[2]
@@ -103,8 +101,8 @@ module RMenu
       replaced_cmd
     end
 
-    def get_string(prompt, items = [], other_params = {})
-      pick(prompt, items, other_params)[:key]
+    def pick_string(prompt, items = [], other_params = {})
+      replace_blocks pick(prompt, items, other_params)[:key]
     end
 
     def notify(msg)
@@ -113,58 +111,73 @@ module RMenu
 
     def pick_item_interactive(prompt, menu = current_menu, deeply)
       item = pick prompt, menu, selected_background: "#FF2244"
-      item, menu = pick_item_interactive prompt, item[:key], deeply if deeply && item[:key].is_a?(Set)
+      item, menu = pick_item_interactive prompt, item[:key], deeply if deeply && item[:key].is_a?(Array)
       [ item, menu ]
     end
 
     def create_item_interactive
-      label, key = get_string("label"), get_string("exec")
-      other_params = string_eval get_string("other params (EVAL)")
+      label, key = pick_string("label"), pick_string("exec")
+      other_params = string_eval pick_string("other params (EVAL)")
       item = { label: label, key: key , user_defined: true, order: 50 }
       item.merge other_params if other_params.is_a? Hash
       item
     end
 
-    def add_item(item = create_item_interactive, menu = current_menu)
+    def add_item(item = nil, menu = current_menu)
+      item ||= create_item_interactive
       return nil if item[:key] == "" && item[:label] == ""
-      menu.add item
+      menu << item
       LOGGER.info "Item #{item.inspect} added to menu #{menu}"
       item
     end
 
-    def del_item(menu = root_menu, deeply = false)
+    def del_item(menu = current_menu, deeply = true)
       item, menu = pick_item_interactive "del item", menu, deeply
+      raise ArgumentError.new "Invalid item (not found in menu)" unless menu.include? item
       menu.delete item
       LOGGER.info "Item #{item.inspect} removed from menu #{menu}"
       item
     end
 
-    def mod_item
-      item, menu = pick_item_interactive "mod item", root_menu, true
+    def mod_item(menu = current_menu, deeply = true)
+      item, menu = pick_item_interactive "mod item", menu, deeply
+      binding.pry
       raise ArgumentError.new "Invalid item (not found in menu)" unless menu.include? item
-      item[:label], item[:key] = get_string("label [#{item[:label]}]"), get_string("exec [#{item[:key]}]")
-      other_params = string_eval get_string("other_params (EVAL)")
+      item[:label] = pick_string "label [#{item[:label]}]"
+      item[:key] = pick_string "exec", [ { label: item[:key].to_s, key: item[:key].to_s } ]
+      other_params = string_eval pick_string("other_params (EVAL)")
       item.merge! other_params if other_params.is_a? Hash
       LOGGER.info "Item updated #{item.inspect}"
       item
     end
 
-    def save_config
-      File.write config[:config_file], YAML.dump(config)
-      LOGGER.info "Configuration saved to #{config[:config_file]}"
+    def mod_conf(key = nil)
+      if key
+        key = key.to_sym
+        conf[key] = string_eval(pick_string "edit conf[#{key}]", [ { label: conf[key], key: conf[key] } ])
+      else
+        pick "edit key", conf.keys.map { |c| { label: c.to_s, key: c } } do |item|
+          mod_conf item[:key]
+        end
+      end
     end
 
-    def load_config(conf_file = config[:config_file])
-      self.config = YAML.load_file conf_file
-      LOGGER.info "Configuration loaded from #{config[:config_file]}"
+    def save_conf
+      File.write conf[:conf_file], YAML.dump(conf)
+      LOGGER.info "Confuration saved to #{conf[:conf_file]}"
+    end
+
+    def load_conf(conf_file = conf[:conf_file])
+      self.conf = YAML.load_file conf_file
+      LOGGER.info "Confuration loaded from #{conf[:conf_file]}"
     end
 
     def open_url(url)
-      system_exec config[:web_browser], url
+      system_exec conf[:web_browser], url
     end
 
     def edit_file(file)
-      system_exec config[:text_editor], file
+      system_exec conf[:text_editor], file
     end
 
     def string_eval(str)
@@ -181,10 +194,11 @@ module RMenu
     end
 
     def system_exec_and_get_output(*cmd)
+      cmd << "&"
       cmd = cmd.join " "
       LOGGER.debug "RMenu.system_exec: #{cmd}"
       catch_and_notify_exception "RMenu.system_exec error: #{e.inspect}" do
-        `#{cmd} &`
+        `#{cmd}`
       end
     end
 
@@ -194,11 +208,14 @@ module RMenu
       rescue StandardError => e
         LOGGER.debug "Exception catched[#{msg}] #{e.inspect} at #{e.backtrace.join("\n")}"
         notify "Exception catched[#{msg}] #{e.inspect}"
+      rescue SyntaxError => se
+        LOGGER.debug "Exception catched[#{msg}] #{se.inspect} at #{se.backtrace.join("\n")}"
+        notify "Exception catched[#{msg}] #{se.inspect}"
       end
     end
 
-    def dmenu
-      DMenuWrapper.new config
+    def dmenu_instance
+      DMenuWrapper.new conf
     end
 
   end

@@ -1,5 +1,5 @@
 ---
-:config_file: "/home/minasmazar/.rmenu.yml"
+:conf_file: "/home/minasmazar/.rmenu.yml"
 :waker_io: "/home/minasmazar/.rmenu_waker"
 :position: :top
 :lines: 15
@@ -7,56 +7,46 @@
 :case_insensitive: true
 :background: "#334433"
 :foreground: "#00FF33"
-:selected-background: "#FF0011"
-:selected-foreground: "#00FF33"
+:selected_background: "#449955"
+:selected_foreground: "#00FF33"
 :text_editor: gvim
 :web_browser: firefox
+:terminal_exec: xterm -e
 :save_on_quit: true
-:exec_str: true
+:force_exec: true
 :menu:
-  :main: !ruby/object:Set
-    hash:
-      ? :label: Mozilla Firefox
-        :key: firefox
-      : true
-      ? :label: Chromium web browser
-        :key: chromium
-      : true
-      ? :label: Search on Ruby Doc
-        :key: http://ruby-doc.com/search.html?q=__SEARCH ON Ruby Doc__&sa=Search
-      : true
-      ? :label: Take screenshot
-        :key: scrot
-      : true
-      ? :label: Search on wiki.it
-        :key: https://it.wikipedia.org/w/index.php?search=__SEARCH ON WIKI__
-      : true
-      ? :label: "----------"
-        :key: 
-      : true
-      ? :label: "=> config"
-        :key: !ruby/object:Set
-          hash:
-            ? :label: add item
-              :key: :add_item
-            : true
-            ? :label: mod item
-              :key: :mod_item
-            : true
-            ? :label: del item
-              :key: :del_item
-            : true
-            ? :label: load config
-              :key: ":load_config"
-            : true
-            ? :label: save config
-              :key: ":save_config"
-            : true
-            ? :label: edit config
-              :key: ":edit_file '~/.rmenu.yml'"
-            : true
-            ? :label: quit
-              :key: :stop
-            : true
-        :order: 90
-      : true
+  :main:
+  - :label: Firefox
+    :key: firefox
+  - :label: Chromium
+    :key: chromium
+  - :label: Search on Clojure Docs
+    :key: https://clojuredocs.org/search?q=__Search on Clojure Docs__
+  - :label: Take screenshot!
+    :key: scrot
+  - :label: Search on Wikipedia (it)
+    :key: https://it.wikipedia.org/w/index.php?search=__Search on Wikipedia (it)__
+  - :label: Search on DuckDuckGo (ddg)
+    :key: https://duckduckgo.com/?q=__Search on DuckDuckGo__
+  - :label: "----------"
+    :order: 89
+    :key: 
+  - :label: "=> config"
+    :order: 90
+    :key:
+    - :label: add item
+      :key: ":add_item nil, root_menu"
+    - :label: mod item
+      :key: ":mod_item root_menu"
+    - :label: del item
+      :key: ":del_item root_menu"
+    - :label: mod conf
+      :key: :mod_conf
+    - :label: load conf
+      :key: :load_conf
+    - :label: save conf
+      :key: :save_conf
+    - :label: edit conf
+      :key: ":edit_file \"#{conf[:conf_file]}\""
+    - :label: quit
+      :key: :stop
