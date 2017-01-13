@@ -3,20 +3,25 @@ require "thor"
 
 class RMenuCLI < Thor
 
+  include RMenu
+
+  EXAMPLE_CONFIG_FILE = File.expand_path "../../assets/rmenu-example.yml", __FILE__
   DEFAULT_CONFIG = {
     config_file: File.expand_path(File.join("~", ".rmenu.yml")),
     exec_str: true
   }
 
+  attr_accessor :config
+
   no_commands do
 
     def setup
       require "pry" if options[:with_pry]
-      @config = DEFAULT_CONFIG
-    end
-
-    def config
-      @config
+      self.config = DEFAULT_CONFIG
+      unless File.exist? config[:config_file]
+        FileUtils.cp EXAMPLE_CONFIG_FILE, config[:config_file]
+        LOGGER.info "No config file found. Created an example one at #{config[:config_file]}"
+      end
     end
 
   end
@@ -25,15 +30,15 @@ class RMenuCLI < Thor
   option :with_pry, type: :boolean, desc: "Open a PRY session within rmenu daemon"
   def start
     setup
-    rmenu_daemon = RMenu::Daemon.new config
+    rmenu_daemon = Daemon.new config
     begin
       rmenu_daemon.start
       rmenu_daemon.pry if options[:with_pry]
       rmenu_daemon.listening_thread.join
     rescue Interrupt
-      RMenu::LOGGER.info "Interrupt cathed..exiting"
+      LOGGER.info "Interrupt cathed..exiting"
     ensure
-      rmenu_daemon.stop true
+      rmenu_daemon.stop skip_save: true
     end
   end
 

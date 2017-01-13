@@ -1,0 +1,62 @@
+---
+:config_file: "/home/minasmazar/.rmenu.yml"
+:waker_io: "/home/minasmazar/.rmenu_waker"
+:position: :top
+:lines: 15
+:locale: it
+:case_insensitive: true
+:background: "#334433"
+:foreground: "#00FF33"
+:selected-background: "#FF0011"
+:selected-foreground: "#00FF33"
+:text_editor: gvim
+:web_browser: firefox
+:save_on_quit: true
+:exec_str: true
+:menu:
+  :main: !ruby/object:Set
+    hash:
+      ? :label: Mozilla Firefox
+        :key: firefox
+      : true
+      ? :label: Chromium web browser
+        :key: chromium
+      : true
+      ? :label: Search on Ruby Doc
+        :key: http://ruby-doc.com/search.html?q=__SEARCH ON Ruby Doc__&sa=Search
+      : true
+      ? :label: Take screenshot
+        :key: scrot
+      : true
+      ? :label: Search on wiki.it
+        :key: https://it.wikipedia.org/w/index.php?search=__SEARCH ON WIKI__
+      : true
+      ? :label: "----------"
+        :key: 
+      : true
+      ? :label: "=> config"
+        :key: !ruby/object:Set
+          hash:
+            ? :label: add item
+              :key: :add_item
+            : true
+            ? :label: mod item
+              :key: :mod_item
+            : true
+            ? :label: del item
+              :key: :del_item
+            : true
+            ? :label: load config
+              :key: ":load_config"
+            : true
+            ? :label: save config
+              :key: ":save_config"
+            : true
+            ? :label: edit config
+              :key: ":edit_file '~/.rmenu.yml'"
+            : true
+            ? :label: quit
+              :key: :stop
+            : true
+        :order: 90
+      : true

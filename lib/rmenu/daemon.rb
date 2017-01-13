@@ -9,6 +9,7 @@ module RMenu
     def start
       self.listening = true
       self.listening_thread = Thread.new do
+        LOGGER.info "Created listening thread.. wait for wake code at #{config[:waker_io]}.."
         while self.listening && (wake_code = File.read(config[:waker_io]).chomp)
           if wake_code == "default"
             item = super
@@ -21,10 +22,11 @@ module RMenu
       self
     end
 
-    def stop(skip_save = false)
+    def stop(options = { skip_save: false})
       self.listening = false
       listening_thread && listening_thread.kill
-      save_config if !skip_save && config[:save_on_quit]
+      LOGGER.info "Stopped listening thread"
+      save_config if !options[:skip_save] && config[:save_on_quit]
     end
 
     def proc(item)
