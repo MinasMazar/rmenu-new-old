@@ -3,14 +3,20 @@ require "thor"
 
 class RMenuCLI < Thor
 
+  DEFAULT_CONFIG = {
+    config_file: File.expand_path(File.join("~", ".rmenu.yml")),
+    exec_str: true
+  }
+
   no_commands do
 
     def setup
       require "pry" if options[:with_pry]
+      @config = DEFAULT_CONFIG
     end
 
     def config
-      @config ||= YAML.load_file(File.expand_path(File.join("~", ".rmenu.yml")))
+      @config
     end
 
   end
@@ -26,6 +32,8 @@ class RMenuCLI < Thor
       rmenu_daemon.listening_thread.join
     rescue Interrupt
       RMenu::LOGGER.info "Interrupt cathed..exiting"
+    ensure
+      rmenu_daemon.stop true
     end
   end
 

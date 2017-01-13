@@ -15,15 +15,18 @@ module RMenu
         yml_config = YAML.load_file config[:config_file]
       end
       self.config = yml_config.merge config
-      load_config
-      reload_menu
+      build_menu
     end
 
-    def reload_menu
-      self.config[:menu] = { main: RMenu::Menu::MAIN }.merge self.config[:menu]
+    def build_menu(force_reset = false)
+      self.config[:menu] ||= {}
+      self.config[:menu][:main] = Set.new(RMenu::Menu::MAIN) if force_reset
       self.current_menu = self.config[:menu][:main]
-      current_menu.uniq!
       self.root_menu = current_menu
+    end
+
+    def build_menu!
+      build_menu true
     end
 
     def start
@@ -34,11 +37,16 @@ module RMenu
       _dmenu = dmenu
       _dmenu.set_params other_params
       _dmenu.prompt = prompt
-      _dmenu.items = items
-      _dmenu.get_item
+      _dmenu.items = items.to_a
+      _dmenu.items = _dmenu.items.map { |i| i.merge label: ( i[:marked] == true ? "*#{i[:label]}*" : i[:label] ) }
+      _dmenu.items = _dmenu.items.sort_by { |i| i[:order] || 50 }
+      _item = _dmenu.get_item
+      _item = items.find { |i| i[:key] == _item[:key] } || _item
     end
 
     def proc(item)
+      raise ArgumentError.new "No valid item passed as argument (must be a Hash)" unless item.is_a? Hash
+      LOGGER.debug "Picked item #{item.inspect}"
       if item[:key].is_a? Symbol
         send item[:key]
       elsif item[:key].is_a? Proc
@@ -46,6 +54,9 @@ module RMenu
           instance_eval(&item[:key])
         end
       elsif item[:key].is_a? Array
+        item[:key] = Set.new item[:key]
+        proc item
+      elsif item[:key].is_a? Set
         last_menu = current_menu
         self.current_menu = item[:key]
         proc(pick(item[:label], current_menu))
@@ -53,12 +64,14 @@ module RMenu
       elsif item[:key].is_a?(String) && item[:key].strip != ""
         str = replace_tokens item[:key]
         str = replace_blocks str
-        if md = str.match(/^:(.+)/)
+        if md = str.match(/^:\s*(.+)/)
           string_eval md[1]
         elsif md = str.match(/^(http(s?):\/\/.+)/)
           open_url md[1]
-        elsif md = str.match(/^!(.+)/)
+        elsif md = str.match(/^!\s*(.+)/)
           system_exec md[1]
+        elsif config[:exec_str]
+          system_exec str
         end
       end
     end
@@ -90,35 +103,37 @@ module RMenu
       replaced_cmd
     end
 
-    def get_string(prompt)
-      pick(prompt, [])[:key].to_s
+    def get_string(prompt, items = [], other_params = {})
+      pick(prompt, items, other_params)[:key]
     end
 
     def notify(msg)
       pick msg, []
     end
 
-    def add_item(item = create_item_interactive, menu = current_menu)
-      item = { label: item, key: (item.split("#")[1] || item ) } if item.is_a? String
-      return nil if item[:key] == "" && item[:label] == ""
-      menu.unshift item
-      LOGGER.info "Item #{item.inspect} added to menu #{menu}"
-      item
-    end
-
     def pick_item_interactive(prompt, menu = current_menu, deeply)
       item = pick prompt, menu, selected_background: "#FF2244"
-      item, menu = pick_item_interactive prompt, item[:key], deeply if item[:key].is_a? Array
+      item, menu = pick_item_interactive prompt, item[:key], deeply if deeply && item[:key].is_a?(Set)
       [ item, menu ]
     end
 
     def create_item_interactive
       label, key = get_string("label"), get_string("exec")
-      { label: label, key: key , user_defined: true }
+      other_params = string_eval get_string("other params (EVAL)")
+      item = { label: label, key: key , user_defined: true, order: 50 }
+      item.merge other_params if other_params.is_a? Hash
+      item
     end
 
-    def del_item
-      item, menu = pick_item_interactive "del item", root_menu, true
+    def add_item(item = create_item_interactive, menu = current_menu)
+      return nil if item[:key] == "" && item[:label] == ""
+      menu.add item
+      LOGGER.info "Item #{item.inspect} added to menu #{menu}"
+      item
+    end
+
+    def del_item(menu = root_menu, deeply = false)
+      item, menu = pick_item_interactive "del item", menu, deeply
       menu.delete item
       LOGGER.info "Item #{item.inspect} removed from menu #{menu}"
       item
@@ -126,7 +141,10 @@ module RMenu
 
     def mod_item
       item, menu = pick_item_interactive "mod item", root_menu, true
+      raise ArgumentError.new "Invalid item (not found in menu)" unless menu.include? item
       item[:label], item[:key] = get_string("label [#{item[:label]}]"), get_string("exec [#{item[:key]}]")
+      other_params = string_eval get_string("other_params (EVAL)")
+      item.merge! other_params if other_params.is_a? Hash
       LOGGER.info "Item updated #{item.inspect}"
       item
     end
@@ -145,6 +163,10 @@ module RMenu
       system_exec config[:web_browser], url
     end
 
+    def edit_file(file)
+      system_exec config[:text_editor], file
+    end
+
     def string_eval(str)
       catch_and_notify_exception { instance_eval str }
     end
@@ -154,7 +176,7 @@ module RMenu
       cmd = cmd.join " "
       LOGGER.debug "RMenu.system_exec: [#{cmd}]"
       catch_and_notify_exception do
-        system "sh -c #{cmd}"
+        system cmd
       end
     end
 

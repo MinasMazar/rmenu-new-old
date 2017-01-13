@@ -21,10 +21,10 @@ module RMenu
       self
     end
 
-    def stop
+    def stop(skip_save = false)
       self.listening = false
       listening_thread && listening_thread.kill
-      save_config if config[:save_on_quit]
+      save_config if !skip_save && config[:save_on_quit]
     end
 
     def proc(item)

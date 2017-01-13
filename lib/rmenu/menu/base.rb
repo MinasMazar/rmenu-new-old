@@ -3,10 +3,15 @@ module RMenu
   module Menu
     SEPARATOR = [ { label: "----------", key: nil } ]
     CONFIG = [
-      { label: "config =>", key: [
+      { label: "=> config", key: [
         { label: "add item", key: :add_item },
-        { label: "quit", key: :stop }
-      ]}
+        { label: "mod item", key: :mod_item },
+        { label: "del item", key: ":del_item " },
+        { label: "load config", key: ":load_config" },
+        { label: "save config", key: ":save_config" },
+        { label: "edit config", key: ":edit_file '~/.rmenu.yml'" },
+        { label: "quit", key: :stop },
+      ], order: 90 }
     ]
     USEFUL_APPS = [
       { label: "Exec firefox", key: "firefox" },
