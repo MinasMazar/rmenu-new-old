@@ -1,10 +1,10 @@
 
 module RMenu
   module Menu
-    SEPARATOR = { label: "----------", key: nil }
+    SEPARATOR = [ { label: "----------", key: nil } ]
     CONFIG = [
       { label: "config =>", key: [
-        { label: "create item", key: :add_item },
+        { label: "add item", key: :add_item },
         { label: "quit", key: :stop }
       ]}
     ]
@@ -15,5 +15,6 @@ module RMenu
       { label: "Take screenshot (Dropbox)", key: "i3-scrot" },
       { label: "Search on wiki", key: "https://it.wikipedia.org/w/index.php?search=__SEARCH ON WIKI__"},
     ]
+    MAIN = [] + USEFUL_APPS + SEPARATOR + CONFIG
   end
 end
