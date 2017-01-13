@@ -5,6 +5,10 @@ class RMenuCLI < Thor
 
   no_commands do
 
+    def setup
+      require "pry" if options[:with_pry]
+    end
+
     def config
       @config ||= YAML.load_file(File.expand_path(File.join("~", ".rmenu.yml")))
     end
@@ -12,10 +16,13 @@ class RMenuCLI < Thor
   end
 
   desc "start", "Launch Rmenu daemon"
+  option :with_pry, type: :boolean, desc: "Open a PRY session within rmenu daemon"
   def start
+    setup
     rmenu_daemon = RMenu::Daemon.new config
     begin
       rmenu_daemon.start
+      rmenu_daemon.pry if options[:with_pry]
       rmenu_daemon.listening_thread.join
     rescue Interrupt
       RMenu::LOGGER.info "Interrupt cathed..exiting"
