@@ -15,9 +15,10 @@ module RMenu
         yml_config = YAML.load_file config[:config_file]
       end
       self.config = yml_config.merge config
-      self.config[:menu] ||= { base: RMenu::Menu::BASE }
+      self.config[:menu] ||= { base: RMenu::Menu::CONFIG }
       @menu = self.config[:menu] && self.config[:menu][:base]
-      @menu += RMenu::Menu::BASE
+      @menu += RMenu::Menu::CONFIG
+      @menu += RMenu::Menu::USEFUL_APPS
       @menu.uniq!
     end
 
@@ -25,8 +26,9 @@ module RMenu
       pick "rmenu => ", menu
     end
 
-    def pick(prompt, items)
+    def pick(prompt, items, other_params = {})
       _dmenu = dmenu
+      _dmenu.set_params other_params
       _dmenu.prompt = prompt
       _dmenu.items = items
       _dmenu.get_item
@@ -62,10 +64,10 @@ module RMenu
       while md = replaced_cmd.match(/(__(.+?)__)/)
         break unless md[1] || md[2]
         input = get_string(md[2])
-        return if input == ""
-        LOGGER.debug "Command interpolated with input tokens: #{replaced_cmd}"
+        return "" if input == ""
         replaced_cmd.sub!(md[0], input)
       end
+      LOGGER.debug "Command interpolated with input tokens: #{replaced_cmd}" if remove_cmd != cmd
       replaced_cmd
     end
 
@@ -76,29 +78,38 @@ module RMenu
           break unless md[1] || md[2]
           evaluated_string = self.instance_eval(md[2]).to_s
           return if evaluated_string == nil
-          LOGGER.debug "Command interpolated with eval blocks: #{replaced_cmd}"
           replaced_cmd.sub!(md[0], evaluated_string)
         end
         replaced_cmd
       end
+      LOGGER.debug "Command interpolated with eval blocks: #{replaced_cmd}" if replaced_cmd != cmd
       replaced_cmd
+    end
+
+    def get_string(prompt)
+      pick(prompt, [])[:key].to_s
     end
 
     def notify(msg)
       pick msg, []
     end
 
-    def get_string(prompt)
-      pick(prompt, [])[:key]
+    def add_item(item = create_item_interactive, menu = self.menu)
+      item = { label: item, key: (item.split("#")[1] || item ) } if item.is_a? String
+      menu.unshift item
     end
 
-    def add_item(item = create_item_interactive)
-      self.menu.unshift item
+    def pick_item_interactive(prompt)
+      pick prompt, self.menu, selected_background: "#FF2244"
     end
 
     def create_item_interactive
-      label, key = replace_tokens("__LABEL__||__EXEC__").split("||")
+      label, key = replace_tokens("__label__"), replace_tokens("__exec__")
       { label: label, key: key }
+    end
+
+    def remove_item(item = pick_item_interactive("remove"))
+      self.menu.delete item
     end
 
     def save_config

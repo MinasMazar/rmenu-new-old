@@ -18,7 +18,15 @@ module RMenu
     attr_accessor :x, :y, :width
 
     def set_params(params = {})
-      params = params.reject { |m| !respond_to? m }
+      params.reject { |m| !respond_to? m }.each do |a, v|
+        self.send "#{a}=", v
+      end
+      if block_given?
+        instance_eval &Proc.new
+      end
+    end
+
+    def initialize(params = {})
       @items               = []
       @position            = :top
       @case_insensitive    = false
@@ -30,15 +38,6 @@ module RMenu
       @selected_foreground = nil
       @prompt              = nil
       @other_params        = ""
-      params.each do |a, v|
-        self.send "#{a}=", v
-      end
-      if block_given?
-        instance_eval &Proc.new
-      end
-    end
-
-    def initialize(params = {})
       set_params params
     end
 
