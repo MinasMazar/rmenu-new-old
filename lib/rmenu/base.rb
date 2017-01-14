@@ -30,7 +30,7 @@ module RMenu
       dmenu.prompt = prompt
       items = items.
         map do |i|
-        i.is_a?(String) ? { label: i, key: i } : i
+        i.is_a?(String) ? i.to_item : i
       end.map do |i|
         i.merge label: ( i[:marked] == true ? "*#{i[:label]}*" : i[:label] )
       end.sort_by do |i|
@@ -143,6 +143,7 @@ module RMenu
     end
 
     def add_item(item = nil, menu = current_menu)
+      item = item.to_item if item.is_a? String
       item ||= create_item_interactive
       return nil if item[:key] == "" && item[:label] == ""
       menu << item
