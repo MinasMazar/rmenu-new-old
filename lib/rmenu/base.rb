@@ -1,12 +1,10 @@
 require "rmenu/dmenu_wrapper"
-require "rmenu/util"
+require "rmenu/monkey_patch"
 require "rmenu/menu/base"
 require "yaml"
 
 module RMenu
   class Base
-
-    include Util::Methods
 
     attr_accessor :conf
     attr_accessor :root_menu
@@ -30,9 +28,15 @@ module RMenu
       dmenu = dmenu_instance
       dmenu.set_params other_params
       dmenu.prompt = prompt
+      items = items.
+        map do |i|
+        i.is_a?(String) ? { label: i, key: i } : i
+      end.map do |i|
+        i.merge label: ( i[:marked] == true ? "*#{i[:label]}*" : i[:label] )
+      end.sort_by do |i|
+        i[:order] || 50
+      end
       dmenu.items = items
-      dmenu.items = dmenu.items.map { |i| i.merge label: ( i[:marked] == true ? "*#{i[:label]}*" : i[:label] ) }
-      dmenu.items = dmenu.items.sort_by { |i| i[:order] || 50 }
       item = dmenu.get_item
       item = items.find { |i| i[:key] == item[:key] } || item
       LOGGER.debug "Picked item #{item.inspect}"
@@ -75,25 +79,25 @@ module RMenu
     end
 
     def replace_tokens(cmd)
-      replaced_cmd = cmd.dup
+      replaced_cmd = cmd
       while md = replaced_cmd.match(/(__(.+?)__)/)
         break unless md[1] || md[2]
         input = pick_string(md[2])
         return "" if input == ""
-        replaced_cmd.sub!(md[0], input)
+        replaced_cmd = replaced_cmd.sub(md[0], input)
       end
       LOGGER.debug "Command interpolated with input tokens: #{replaced_cmd}" if replaced_cmd != cmd
       replaced_cmd
     end
 
     def replace_blocks(cmd)
-      replaced_cmd = cmd.dup
+      replaced_cmd = cmd
       catch_and_notify_exception do
         while md = replaced_cmd.match(/(\{([^\{\}]+?)\})/)
           break unless md[1] || md[2]
           evaluated_string = self.instance_eval(md[2]).to_s # TODO: better to eval in a useful sandbox
           return if evaluated_string == nil
-          replaced_cmd.sub!(md[0], evaluated_string)
+          replaced_cmd = replaced_cmd.sub(md[0], evaluated_string)
         end
         replaced_cmd
       end
@@ -101,8 +105,23 @@ module RMenu
       replaced_cmd
     end
 
+    def replace_inline_blocks(cmd)
+      replaced_cmd = cmd
+      catch_and_notify_exception do
+        while md = replaced_cmd.match(/(\{\{([^\{\}]+?)\}\})/)
+          break unless md[1] || md[2]
+          evaluated_string = self.instance_eval(md[2]).to_s # TODO: better to eval in a useful sandbox
+          return if evaluated_string == nil
+          replaced_cmd = replaced_cmd.sub(md[0], evaluated_string)
+        end
+        replaced_cmd
+      end
+      LOGGER.debug "Command interpolated with inline eval blocks: #{replaced_cmd}" if replaced_cmd != cmd
+      replaced_cmd
+    end
+
     def pick_string(prompt, items = [], other_params = {})
-      replace_blocks pick(prompt, items, other_params)[:key]
+      replace_inline_blocks pick(prompt, items, other_params)[:key].to_s
     end
 
     def notify(msg)
@@ -141,10 +160,9 @@ module RMenu
 
     def mod_item(menu = current_menu, deeply = true)
       item, menu = pick_item_interactive "mod item", menu, deeply
-      binding.pry
       raise ArgumentError.new "Invalid item (not found in menu)" unless menu.include? item
-      item[:label] = pick_string "label [#{item[:label]}]"
-      item[:key] = pick_string "exec", [ { label: item[:key].to_s, key: item[:key].to_s } ]
+      item[:label] = pick_string "label [#{item[:label]}]", [ item[:label] ]
+      item[:key] = pick_string "exec", [ item[:key] ]
       other_params = string_eval pick_string("other_params (EVAL)")
       item.merge! other_params if other_params.is_a? Hash
       LOGGER.info "Item updated #{item.inspect}"

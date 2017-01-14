@@ -37,7 +37,6 @@ class RMenuCLI < Thor
       rmenu_daemon.listening_thread.join
     rescue Interrupt
       LOGGER.info "Interrupt cathed..exiting"
-    ensure
       rmenu_daemon.stop skip_save: true
     end
   end

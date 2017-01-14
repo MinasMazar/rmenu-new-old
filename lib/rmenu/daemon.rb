@@ -24,9 +24,9 @@ module RMenu
 
     def stop(options = { skip_save: false})
       self.listening = false
-      listening_thread && listening_thread.kill
-      LOGGER.info "Stopped listening thread"
       save_conf if !options[:skip_save] && conf[:save_on_quit]
+      LOGGER.info "Stopping listening thread"
+      listening_thread && listening_thread.kill
     end
 
     def proc(item)
