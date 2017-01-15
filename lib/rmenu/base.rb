@@ -152,6 +152,7 @@ module RMenu
 
     def del_item(menu = current_menu, deeply = true)
       item, menu = pick_item_interactive "del item", menu, deeply
+      return if item[:key] == ""
       raise ArgumentError.new "Invalid item (not found in menu)" unless menu.include? item
       menu.delete item
       LOGGER.info "Item #{item.inspect} removed from menu #{menu}"
@@ -160,6 +161,7 @@ module RMenu
 
     def mod_item(menu = current_menu, deeply = true)
       item, menu = pick_item_interactive "mod item", menu, deeply
+      return if item[:key] == ""
       raise ArgumentError.new "Invalid item (not found in menu)" unless menu.include? item
       item[:label] = pick_string "label [#{item[:label]}]", [ item[:label] ]
       item[:key] = pick_string "exec", [ item[:key] ]
@@ -224,15 +226,15 @@ module RMenu
       end
     end
 
-    def catch_and_notify_exception(msg = "")
+    def catch_and_notify_exception(msg = nil)
       begin
         yield
       rescue StandardError => e
-        LOGGER.debug "Exception catched[#{msg}] #{e.inspect} at #{e.backtrace.join("\n")}"
-        notify "Exception catched[#{msg}] #{e.inspect}"
+        LOGGER.debug "Exception catched[#{msg || e.message}] #{e.inspect} at #{e.backtrace.join("\n")}"
+        notify "Exception catched: #{msg || e.message}"
       rescue SyntaxError => se
-        LOGGER.debug "Exception catched[#{msg}] #{se.inspect} at #{se.backtrace.join("\n")}"
-        notify "Exception catched[#{msg}] #{se.inspect}"
+        LOGGER.debug "Exception catched[#{msg || se.message}] #{se.inspect} at #{se.backtrace.join("\n")}"
+        notify "Exception catched: #{msg || e.message}"
       end
     end
 
