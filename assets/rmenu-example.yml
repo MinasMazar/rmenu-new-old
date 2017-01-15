@@ -16,23 +16,8 @@
 :force_exec: true
 :menu:
   :main:
-  - :label: Firefox
-    :key: firefox
-  - :label: Chromium
-    :key: chromium
-  - :label: Search on Clojure Docs
-    :key: https://clojuredocs.org/search?q=__Search on Clojure Docs__
-  - :label: Take screenshot!
-    :key: scrot
-  - :label: Search on Wikipedia (it)
-    :key: https://it.wikipedia.org/w/index.php?search=__Search on Wikipedia (it)__
-  - :label: Search on DuckDuckGo (ddg)
-    :key: https://duckduckgo.com/?q=__Search on DuckDuckGo__
-  - :label: "----------"
-    :order: 89
-    :key: 
-  - :label: "=> config"
-    :order: 90
+  - :label: "### RMENU CONFIG ###"
+    :order: 1
     :key:
     - :label: add item
       :key: ":add_item nil, root_menu"
@@ -50,3 +35,18 @@
       :key: ":edit_file \"#{conf[:conf_file]}\""
     - :label: quit
       :key: :stop
+  - :label: "----------"
+    :order: 2
+    :key: 
+  - :label: Firefox
+    :key: firefox
+  - :label: Chromium
+    :key: chromium
+  - :label: Search on Clojure Docs
+    :key: https://clojuredocs.org/search?q=__Search on Clojure Docs__
+  - :label: Take screenshot!
+    :key: scrot
+  - :label: Search on Wikipedia (it)
+    :key: https://it.wikipedia.org/w/index.php?search=__Search on Wikipedia (it)__
+  - :label: Search on DuckDuckGo (ddg)
+    :key: https://duckduckgo.com/?q=__Search on DuckDuckGo__

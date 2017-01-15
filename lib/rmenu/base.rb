@@ -28,17 +28,16 @@ module RMenu
       dmenu = dmenu_instance
       dmenu.set_params other_params
       dmenu.prompt = prompt
-      items = items.
-        map do |i|
-        i.is_a?(String) ? i.to_item : i
-      end.map do |i|
+      items.map! do |i|
+        i.to_item if i.respond_to? :to_item
+      end.compact!
+      items && items.map! do |i|
         i.merge label: ( i[:marked] == true ? "*#{i[:label]}*" : i[:label] )
-      end.sort_by do |i|
+      end.sort_by! do |i|
         i[:order] || 50
       end
       dmenu.items = items
       item = dmenu.get_item
-      item = items.find { |i| i[:key] == item[:key] } || item
       LOGGER.debug "Picked item #{item.inspect}"
       yield item, self if block_given?
       item
@@ -169,6 +168,10 @@ module RMenu
       LOGGER.info "Item updated #{item.inspect}"
       item
     end
+
+    alias :add :add_item
+    alias :mod :mod_item
+    alias :del :del_item
 
     def mod_conf(key = nil)
       if key
