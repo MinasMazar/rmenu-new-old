@@ -7,17 +7,27 @@ module RMenu
   class Base
 
     attr_accessor :conf
-    attr_accessor :root_menu
+    attr_accessor :profiles
+    attr_accessor :current_profile
     attr_accessor :current_menu
 
-    def initialize(configuration)
-      yml_conf = {}
-      if configuration[:conf_file]
-        yml_conf = YAML.load_file configuration[:conf_file]
-      end
-      self.conf = yml_conf.merge configuration
-      self.current_menu = self.conf[:menu] && self.conf[:menu][:main] || Menu::FALLBACK
-      self.root_menu = current_menu
+    def initialize(conf)
+      self.conf = conf
+      reset_profile!
+    end
+
+    def root_menu
+      conf[:profiles][current_profile]
+    end
+
+    def switch_profile!(profile = :main)
+      self.current_profile = profile
+      self.profiles = conf[:profiles] || Profiles::FALLBACK
+      self.current_menu = conf[:profiles][current_profile][:items]
+    end
+
+    def reset_profile!
+      switch_profile!
     end
 
     def start
@@ -193,6 +203,7 @@ module RMenu
 
     def load_conf(conf_file = conf[:conf_file])
       self.conf = YAML.load_file conf_file
+      reset_menu!
       LOGGER.info "Confuration loaded from #{conf[:conf_file]}"
     end
 

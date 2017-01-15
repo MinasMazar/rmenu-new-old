@@ -8,7 +8,9 @@ class RMenuCLI < Thor
   EXAMPLE_CONF_FILE = File.expand_path "../../assets/rmenu-example.yml", __FILE__
   DEFAULT_CONFIG = {
     conf_file: File.expand_path(File.join("~", ".rmenu.yml")),
-    force_exec: true
+    waker_io: File.expand_path(File.join("~", ".rmenu_waker")),
+    case_insensitive: true,
+    save_on_quit: true
   }
 
   attr_accessor :conf
@@ -18,9 +20,17 @@ class RMenuCLI < Thor
     def setup
       require "pry" if options[:with_pry]
       self.conf = DEFAULT_CONFIG
-      unless File.exist? conf[:conf_file]
-        FileUtils.cp EXAMPLE_CONF_FILE, conf[:conf_file]
-        LOGGER.info "No config file found. Created an example one at #{conf[:conf_file]}"
+      begin
+        unless File.exist? conf[:conf_file]
+          FileUtils.cp EXAMPLE_CONF_FILE, conf[:conf_file]
+          LOGGER.info "No config file found. Created an example one at #{conf[:conf_file]}"
+        end
+        yml_conf = {}
+        if conf[:conf_file]
+          yml_conf = YAML.load_file conf[:conf_file]
+        end
+        self.conf = yml_conf.merge conf
+      rescue Psych::SyntaxError
       end
     end
 
