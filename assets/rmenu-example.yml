@@ -40,12 +40,8 @@
     - :label: "----------"
       :order: 2
       :key: 
-    - :label: Firefox
-      :key: firefox
-    - :label: Chromium
-      :key: chromium
-    - :label: Search on Clojure Docs
-      :key: https://clojuredocs.org/search?q=__Search on Clojure Docs__
+    - :label: "Web browser {{ conf[:web_browser].capitalize }}"
+      :key: "{ conf[:web_browser] }"
     - :label: Take screenshot!
       :key: scrot
     - :label: Search on Wikipedia (it)

@@ -40,6 +40,8 @@ module RMenu
       dmenu.prompt = prompt
       items.map! do |i|
         i.to_item if i.respond_to? :to_item
+      end.each do |i|
+        i[:label] = replace_inline_blocks i[:label]
       end.compact!
       items && items.map! do |i|
         i.merge label: ( i[:marked] == true ? "*#{i[:label]}*" : i[:label] )
