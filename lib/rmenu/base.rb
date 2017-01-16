@@ -7,6 +7,8 @@ require "yaml"
 module RMenu
   class Base
 
+    include Menu::BuiltIn
+
     attr_accessor :conf
     attr_accessor :profiles
     attr_accessor :current_profile
@@ -32,15 +34,19 @@ module RMenu
     end
 
     def switch_profile!(profile = :main)
+      profile = profile.to_sym
       if profiles[profile]
-        self.current_profile = profiles[profile]
-        self.current_profile[:name] ||= profile
+        if current_profile != profiles[profile]
+          self.current_profile = profiles[profile]
+          self.current_menu = root_menu
+          LOGGER.debug "Profile activated [#{current_profile[:name]}]"
+          self.current_profile[:name] ||= profile
+        end
       else
         LOGGER.debug "Profile [#{profile}] not found.. going fallback to #{Menu::FALLBACK[:name]}"
         self.current_profile = Menu::FALLBACK
+        self.current_menu = root_menu
       end
-      self.current_menu = root_menu
-      LOGGER.debug "Profile activated [#{current_profile[:name]}]"
       current_profile
     end
 
@@ -58,10 +64,10 @@ module RMenu
       dmenu.prompt = prompt
       items.map! do |i|
         i.to_item if i.respond_to? :to_item
-      end.each do |i|
-        i[:label] = replace_inline_blocks i[:label]
       end.compact!
-      items && items.map! do |i|
+      items && items.each do |i|
+        i[:label] = replace_inline_blocks i[:label]
+      end.map! do |i|
         i.merge label: ( i[:marked] == true ? "*#{i[:label]}*" : i[:label] )
       end.sort_by! do |i|
         i[:order] || 50
@@ -108,7 +114,7 @@ module RMenu
     end
 
     def replace_tokens(cmd)
-      replaced_cmd = cmd
+      replaced_cmd = cmd.to_s
       while md = replaced_cmd.match(/(__(.+?)__)/)
         break unless md[1] || md[2]
         input = pick_string(md[2])
@@ -120,30 +126,24 @@ module RMenu
     end
 
     def replace_blocks(cmd)
-      replaced_cmd = cmd
-      catch_and_notify_exception do
-        while md = replaced_cmd.match(/(\{([^\{\}]+?)\})/)
-          break unless md[1] || md[2]
-          evaluated_string = self.instance_eval(md[2]).to_s # TODO: better to eval in a useful sandbox
-          return if evaluated_string == nil
-          replaced_cmd = replaced_cmd.sub(md[0], evaluated_string)
-        end
-        replaced_cmd
+      replaced_cmd = cmd.to_s
+      while md = replaced_cmd.match(/(\{([^\{\}]+?)\})/)
+        break unless md[1] || md[2]
+        evaluated_string = string_eval(md[2]).to_s # TODO: better to eval in a useful sandbox
+        return if evaluated_string == nil
+        replaced_cmd = replaced_cmd.sub(md[0], evaluated_string)
       end
       LOGGER.debug "Command interpolated with eval blocks: #{replaced_cmd}" if replaced_cmd != cmd
       replaced_cmd
     end
 
     def replace_inline_blocks(cmd)
-      replaced_cmd = cmd
-      catch_and_notify_exception do
-        while md = replaced_cmd.match(/(\{\{([^\{\}]+?)\}\})/)
-          break unless md[1] || md[2]
-          evaluated_string = self.instance_eval(md[2]).to_s # TODO: better to eval in a useful sandbox
-          return if evaluated_string == nil
-          replaced_cmd = replaced_cmd.sub(md[0], evaluated_string)
-        end
-        replaced_cmd
+      replaced_cmd = cmd.to_s
+      while md = replaced_cmd.match(/(\{\{([^\{\}]+?)\}\})/)
+        break unless md[1] || md[2]
+        evaluated_string = string_eval(md[2]).to_s # TODO: better to eval in a useful sandbox
+        return if evaluated_string == nil
+        replaced_cmd = replaced_cmd.sub(md[0], evaluated_string)
       end
       LOGGER.debug "Command interpolated with inline eval blocks: #{replaced_cmd}" if replaced_cmd != cmd
       replaced_cmd
@@ -164,12 +164,9 @@ module RMenu
     end
 
     def create_item_interactive
-      populate_item = {label: "Populate!", key: Proc.new { add_item nil, current_menu }, order: 1, implode: true }
-      fix_item = {label: "Fix!", key: Proc.new { current_menu.reject! { |i| i[:implode] } }, order: 1, implode: true }
-      separator = Menu::BuiltIn::SEPARATOR.merge implode: true
       label, key = pick_string("label"), pick_string("exec")
       if key == "[]" || key == []
-        key = [ populate_item, fix_item, separator ]
+        key = populator_combo
       end
       other_params = string_eval pick_string("other params (EVAL)")
       item = { label: label, key: key , user_defined: true, order: 50 }
@@ -177,7 +174,7 @@ module RMenu
       item
     end
 
-    def add_item(item, menu = current_menu)
+    def add_item(item = create_item_interactive, menu = current_menu)
       item = item.to_item if item.is_a? String
       item ||= create_item_interactive
       return nil if item[:key] == "" && item[:label] == ""
@@ -197,14 +194,14 @@ module RMenu
 
     def mod_item(menu = current_menu, deeply = true)
       item, menu = pick_item_interactive "mod item", menu, deeply
-      return if item[:key] == ""
-      raise ArgumentError.new "Invalid item (not found in menu)" unless menu.include? item
-      item[:label] = pick_string "label [#{item[:label]}]", [ item[:label] ]
-      item[:key] = pick_string "exec", [ item[:key] ]
-      other_params = string_eval pick_string("other_params (EVAL)")
-      item.merge! other_params if other_params.is_a? Hash
-      LOGGER.info "Item updated #{item.inspect}"
-      item
+      if menu.include? item
+        item[:label] = pick_string "label [#{item[:label]}]", [ item[:label] ]
+        item[:key] = pick_string "exec", [ item[:key] ]
+        other_params = string_eval pick_string("other_params (EVAL)")
+        item.merge! other_params if other_params.is_a? Hash
+        LOGGER.info "Item updated #{item.inspect}"
+        item
+      end
     end
 
     alias :add :add_item
@@ -242,6 +239,7 @@ module RMenu
     end
 
     def string_eval(str)
+      LOGGER.debug "Evaluating string [#{str}]"
       catch_and_notify_exception { instance_eval str }
     end
 
@@ -271,7 +269,7 @@ module RMenu
         notify "Exception catched: #{msg || e.message}"
       rescue SyntaxError => se
         LOGGER.debug "Exception catched[#{msg || se.message}] #{se.inspect} at #{se.backtrace.join("\n")}"
-        notify "Exception catched: #{msg || e.message}"
+        notify "Exception catched: #{msg || se.message}"
       end
     end
 
