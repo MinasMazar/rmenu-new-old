@@ -1,7 +1,7 @@
 require "yaml"
 
 module RMenu
-  module Profiles
+  module Menu
     EXAMPLE_CONF = File.expand_path "../../../../assets/example-conf.yml", __FILE__
     # Profile definition::
     # FALLBACK = {

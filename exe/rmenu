@@ -21,7 +21,7 @@ class RMenuCLI < Thor
       self.conf = DEFAULT_CONFIG
       begin
         unless File.exist? conf[:conf_file]
-          FileUtils.cp Profiles::EXAMPLE_CONF, conf[:conf_file]
+          FileUtils.cp Menu::EXAMPLE_CONF, conf[:conf_file]
           LOGGER.info "No config file found. Created an example one at #{conf[:conf_file]}"
         end
         yml_conf = {}

@@ -21,6 +21,7 @@
     :items:
     - :label: "### RMENU CONFIG ###"
       :order: 1
+      :goback: true
       :key:
       - :label: add item
         :key: ":add_item nil, root_menu"

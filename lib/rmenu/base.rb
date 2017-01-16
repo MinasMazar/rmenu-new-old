@@ -1,6 +1,7 @@
 require "rmenu/dmenu_wrapper"
 require "rmenu/monkey_patch"
-require "rmenu/menu/base"
+require "rmenu/menu/built_in"
+require "rmenu/menu/fallback"
 require "yaml"
 
 module RMenu
@@ -10,9 +11,10 @@ module RMenu
     attr_accessor :profiles
     attr_accessor :current_profile
     attr_accessor :current_menu
+    attr_accessor :last_menu
 
     def initialize(conf)
-      self.conf = conf
+      @conf = conf
       reset_profile!
     end
 
@@ -21,7 +23,7 @@ module RMenu
         @profiles = conf[:profiles]
       else
         LOGGER.debug "No suitable profile found! Going fallback.."
-        @profiles = { main: Profiles::FALLBACK }
+        @profiles = { main: Menu::FALLBACK }
       end
     end
 
@@ -34,8 +36,8 @@ module RMenu
         self.current_profile = profiles[profile]
         self.current_profile[:name] ||= profile
       else
-        LOGGER.debug "Profile [#{profile}] not found.. going fallback to #{Profiles::FALLBACK[:name]}"
-        self.current_profile = Profiles::FALLBACK
+        LOGGER.debug "Profile [#{profile}] not found.. going fallback to #{Menu::FALLBACK[:name]}"
+        self.current_profile = Menu::FALLBACK
       end
       self.current_menu = root_menu
       LOGGER.debug "Profile activated [#{current_profile[:name]}]"
@@ -80,10 +82,10 @@ module RMenu
           instance_eval(&item[:key])
         end
       elsif item[:key].is_a? Array
-        last_menu = current_menu
+        self.last_menu = current_menu
         self.current_menu = item[:key]
         proc(pick(item[:label], current_menu, item))
-        self.current_menu = last_menu
+        self.current_menu = last_menu if item[:goback]
       elsif item[:key].is_a?(String) && item[:key].strip != ""
         if md = item[:key].match(/^:\s*(.+)/)
           string_eval md[1]
@@ -162,14 +164,20 @@ module RMenu
     end
 
     def create_item_interactive
+      populate_item = {label: "Populate!", key: Proc.new { add_item nil, current_menu }, order: 1, implode: true }
+      fix_item = {label: "Fix!", key: Proc.new { current_menu.reject! { |i| i[:implode] } }, order: 1, implode: true }
+      separator = Menu::BuiltIn::SEPARATOR.merge implode: true
       label, key = pick_string("label"), pick_string("exec")
+      if key == "[]" || key == []
+        key = [ populate_item, fix_item, separator ]
+      end
       other_params = string_eval pick_string("other params (EVAL)")
       item = { label: label, key: key , user_defined: true, order: 50 }
       item.merge other_params if other_params.is_a? Hash
       item
     end
 
-    def add_item(item = nil, menu = current_menu)
+    def add_item(item, menu = current_menu)
       item = item.to_item if item.is_a? String
       item ||= create_item_interactive
       return nil if item[:key] == "" && item[:label] == ""
@@ -180,11 +188,11 @@ module RMenu
 
     def del_item(menu = current_menu, deeply = true)
       item, menu = pick_item_interactive "del item", menu, deeply
-      return if item[:key] == ""
-      raise ArgumentError.new "Invalid item (not found in menu)" unless menu.include? item
-      menu.delete item
-      LOGGER.info "Item #{item.inspect} removed from menu #{menu}"
-      item
+      if menu.include? item
+        menu.delete item
+        LOGGER.info "Item #{item.inspect} removed from menu #{menu}"
+        item
+      end
     end
 
     def mod_item(menu = current_menu, deeply = true)
