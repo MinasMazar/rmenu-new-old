@@ -170,12 +170,14 @@ module RMenu
 
     def create_item_interactive
       label, key = pick_string("label"), pick_string("exec")
-      if key == "[]" || key == []
-        key = populator_combo
-      end
       other_params = string_eval pick_string("other params (EVAL)")
+      other_params = {} unless other_params.is_a? Hash
+      if key == "[]" || key == []
+        key = populator_combo_submenu
+        other_params.merge! goback: true
+      end
       item = { label: label, key: key , user_defined: true, order: 50 }
-      item.merge other_params if other_params.is_a? Hash
+      item.merge! other_params if other_params.is_a? Hash
       item
     end
 
