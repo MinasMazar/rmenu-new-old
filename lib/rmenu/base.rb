@@ -16,14 +16,30 @@ module RMenu
       reset_profile!
     end
 
+    def profiles
+      if conf[:profiles]&.any?
+        @profiles = conf[:profiles]
+      else
+        LOGGER.debug "No suitable profile found! Going fallback.."
+        @profiles = { main: Profiles::FALLBACK }
+      end
+    end
+
     def root_menu
-      conf[:profiles][current_profile]
+      current_profile[:items]
     end
 
     def switch_profile!(profile = :main)
-      self.current_profile = profile
-      self.profiles = conf[:profiles] || Profiles::FALLBACK
-      self.current_menu = conf[:profiles][current_profile][:items]
+      if profiles[profile]
+        self.current_profile = profiles[profile]
+        self.current_profile[:name] ||= profile
+      else
+        LOGGER.debug "Profile [#{profile}] not found.. going fallback to #{Profiles::FALLBACK[:name]}"
+        self.current_profile = Profiles::FALLBACK
+      end
+      self.current_menu = root_menu
+      LOGGER.debug "Profile activated [#{current_profile[:name]}]"
+      current_profile
     end
 
     def reset_profile!
@@ -31,7 +47,7 @@ module RMenu
     end
 
     def start
-      pick "rmenu => ", current_menu
+      proc pick "rmenu => ", current_menu
     end
 
     def pick(prompt, items, other_params = {})
@@ -252,7 +268,7 @@ module RMenu
     end
 
     def dmenu_instance
-      DMenuWrapper.new conf
+      DMenuWrapper.new current_profile
     end
 
   end

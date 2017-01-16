@@ -10,13 +10,9 @@ module RMenu
       self.listening = true
       self.listening_thread = Thread.new do
         LOGGER.info "Created listening thread.. wait for wake code at #{conf[:waker_io]}.."
-        while self.listening && (wake_code = File.read(conf[:waker_io]).chomp)
-          if wake_code == "default"
-            item = super
-            if item
-              proc item
-            end
-          end
+        while self.listening && (wake_code = File.read(conf[:waker_io]).chomp).to_sym
+          switch_profile! wake_code
+          super
         end
       end
       self
