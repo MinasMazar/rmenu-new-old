@@ -18,6 +18,7 @@ module RMenu
     def initialize(conf)
       @conf = conf
       @last_menu = []
+      @current_menu = {}
       reset_profile!
     end
 
@@ -56,24 +57,26 @@ module RMenu
     end
 
     def start
-      proc pick "rmenu => ", current_menu
+      proc pick current_profile[:name] || "rmenu =>", current_menu
     end
 
-    def pick(prompt, items, other_params = {})
+    def pick(prompt, items, replace_labels = true, other_params = {})
       dmenu = dmenu_instance
       dmenu.set_params other_params
       dmenu.prompt = prompt
+      items && replace_labels && items.each do |i|
+        i[:label] = replace_inline_blocks i[:label]
+      end
       items.map! do |i|
         i.to_item if i.respond_to? :to_item
       end.compact!
-      items && items.each do |i|
-        i[:label] = replace_inline_blocks i[:label]
-      end.map! do |i|
+      items.map! do |i|
         i.merge label: ( i[:marked] == true ? "*#{i[:label]}*" : i[:label] )
       end.sort_by! do |i|
         i[:order] || 50
       end
       dmenu.items = items
+      dmenu.lines = items.size if conf[:auto_size]
       item = dmenu.get_item
       LOGGER.debug "Picked item #{item.inspect}"
       yield item, self if block_given?
@@ -82,6 +85,9 @@ module RMenu
 
     def proc(item)
       raise ArgumentError.new "No valid item passed as argument (must be a Hash)" unless item.is_a? Hash
+
+      self.keep_open = item[:keep_open]
+
       if item[:key].is_a? Symbol
         send item[:key]
       elsif item[:key].is_a? Proc
@@ -94,20 +100,26 @@ module RMenu
         proc(pick(item[:label], current_menu, item))
         back if item[:goback]
       elsif item[:key].is_a?(String) && item[:key].strip != ""
-        if md = item[:key].match(/^:\s*(.+)/)
+        if md = item[:key].match(/^\s*:\s*(.+)/)
           string_eval md[1]
         else
           str = replace_tokens item[:key]
           str = replace_blocks str
           if md = str.match(/^\s*(http(s?):\/\/.+)/)
             open_url md[1]
-          elsif md = str.match(/\s*!(.+)/)
+          elsif md = str.match(/^\s*(!{1,2})\s*(.+)/)
             term_exec = str.match(/;\s*$/)
             cmd = [ ]
             cmd << conf[:terminal_exec] if term_exec
-            cmd << md[1]
-            system_exec cmd
+            cmd << md[2]
+            binding.pry
+            if md[1] == "!"
+              system_exec cmd
+            elsif md[1] == "!!"
+              notify system_exec_and_get_output cmd
+            end
           elsif str != ""
+            binding.pry
             proc key: "!#{str}" if conf[:force_exec]
           end
         end
@@ -155,7 +167,7 @@ module RMenu
     end
 
     def notify(msg)
-      pick msg, []
+      pick msg, [], false
     end
 
     def back
@@ -172,11 +184,10 @@ module RMenu
       label, key = pick_string("label"), pick_string("exec")
       other_params = string_eval pick_string("other params (EVAL)")
       other_params = {} unless other_params.is_a? Hash
-      if key == "[]" || key == []
-        key = populator_combo_submenu
-        other_params.merge! goback: true
-      end
       item = { label: label, key: key , user_defined: true, order: 50 }
+      if key == "[]" || key == []
+        item = create_submenu label
+      end
       item.merge! other_params if other_params.is_a? Hash
       item
     end
@@ -191,10 +202,12 @@ module RMenu
     end
 
     def del_item(menu = current_menu, deeply = true)
+      switch_profile! :delete_item
       item, menu = pick_item_interactive "del item", menu, deeply
       if menu.include? item
         menu.delete item
         LOGGER.info "Item #{item.inspect} removed from menu #{menu}"
+        switch_profile!
         item
       end
     end
@@ -216,7 +229,7 @@ module RMenu
     alias :del :del_item
 
     def mod_conf(key = nil)
-      if key
+      if key && key.strip != ""
         key = key.to_sym
         conf[key] = string_eval(pick_string "edit conf[#{key}]", [ { label: conf[key], key: conf[key] } ])
       else
@@ -263,7 +276,7 @@ module RMenu
       cmd << "&"
       cmd = cmd.join " "
       LOGGER.debug "RMenu.system_exec: #{cmd}"
-      catch_and_notify_exception "RMenu.system_exec error: #{e.inspect}" do
+      catch_and_notify_exception do
         `#{cmd}`
       end
     end

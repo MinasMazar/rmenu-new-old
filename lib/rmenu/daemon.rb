@@ -5,12 +5,18 @@ module RMenu
 
     attr_accessor :listening
     attr_accessor :listening_thread
+    attr_accessor :keep_open
+
+    def initialize(conf)
+      super conf
+      self.keep_open = false
+    end
 
     def start
       self.listening = true
       self.listening_thread = Thread.new do
         LOGGER.info "Created listening thread.. wait for wake code at #{conf[:waker_io]}.."
-        while self.listening && (wake_code = File.read(conf[:waker_io]).chomp).to_sym
+        while self.listening && keep_open? || (wake_code = File.read(conf[:waker_io]).chomp).to_sym
           switch_profile! wake_code
           super
         end
@@ -26,7 +32,12 @@ module RMenu
     end
 
     def proc(item)
+      self.keep_open = item[:keep_open]
       super item
+    end
+
+    def keep_open?
+      @keep_open
     end
 
   end

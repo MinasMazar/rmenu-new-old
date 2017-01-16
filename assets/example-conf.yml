@@ -9,6 +9,14 @@
 :save_on_quit: true
 :force_exec: true
 :profiles:
+  :delete_item:
+    :name: delete item 
+    :position: :top
+    :case_insensitive: true
+    :background: "#334433"
+    :foreground: "#00FF33"
+    :selected_background: "#EE6666"
+    :selected_foreground: "#00FF33"
   :main:
     :name: main
     :position: :top

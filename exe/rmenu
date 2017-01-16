@@ -9,6 +9,7 @@ class RMenuCLI < Thor
     conf_file: File.expand_path(File.join("~", ".rmenu.yml")),
     waker_io: File.expand_path(File.join("~", ".rmenu_waker")),
     case_insensitive: true,
+    auto_size: true,
     save_on_quit: true
   }
 
