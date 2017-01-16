@@ -17,6 +17,7 @@ module RMenu
 
     def initialize(conf)
       @conf = conf
+      @last_menu = []
       reset_profile!
     end
 
@@ -88,10 +89,10 @@ module RMenu
           instance_eval(&item[:key])
         end
       elsif item[:key].is_a? Array
-        self.last_menu = current_menu
+        last_menu << current_menu
         self.current_menu = item[:key]
         proc(pick(item[:label], current_menu, item))
-        self.current_menu = last_menu if item[:goback]
+        back if item[:goback]
       elsif item[:key].is_a?(String) && item[:key].strip != ""
         if md = item[:key].match(/^:\s*(.+)/)
           string_eval md[1]
@@ -155,6 +156,10 @@ module RMenu
 
     def notify(msg)
       pick msg, []
+    end
+
+    def back
+      self.current_menu = last_menu.pop || root_menu
     end
 
     def pick_item_interactive(prompt, menu = current_menu, deeply)

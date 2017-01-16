@@ -13,6 +13,12 @@ module RMenu
           separator.merge({implode: true})
         ]
       end
+      def always_visible_items
+        [
+          { label: "------------", key: nil },
+          {label: "<-- BACK", key: :back, order: 90 }
+        ]
+      end
     end
 
   end
