@@ -64,12 +64,12 @@ module RMenu
       dmenu = dmenu_instance
       dmenu.set_params other_params
       dmenu.prompt = prompt
-      items && replace_labels && items.each do |i|
-        i[:label] = replace_inline_blocks i[:label]
-      end
       items.map! do |i|
         i.to_item if i.respond_to? :to_item
       end.compact!
+      items && replace_labels && items.each do |i|
+        i[:label] = replace_inline_blocks i[:label]
+      end
       items.map! do |i|
         i.merge label: ( i[:marked] == true ? "*#{i[:label]}*" : i[:label] )
       end.sort_by! do |i|
@@ -112,14 +112,12 @@ module RMenu
             cmd = [ ]
             cmd << conf[:terminal_exec] if term_exec
             cmd << md[2]
-            binding.pry
             if md[1] == "!"
               system_exec cmd
             elsif md[1] == "!!"
               notify system_exec_and_get_output cmd
             end
           elsif str != ""
-            binding.pry
             proc key: "!#{str}" if conf[:force_exec]
           end
         end
