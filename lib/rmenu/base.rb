@@ -1,5 +1,6 @@
 require "rmenu/dmenu_wrapper"
 require "rmenu/monkey_patch"
+require "rmenu/label_mangle"
 require "rmenu/menu/built_in"
 require "rmenu/menu/fallback"
 require "yaml"
@@ -7,11 +8,13 @@ require "yaml"
 module RMenu
   class Base
 
+    include LabelMangle
     include Menu::BuiltIn
 
     attr_accessor :conf
     attr_accessor :profiles
     attr_accessor :current_profile
+    attr_accessor :root_menu
     attr_accessor :current_menu
     attr_accessor :last_menu
 
@@ -32,15 +35,20 @@ module RMenu
     end
 
     def root_menu
-      current_profile[:items]
+      @root_menu || []
     end
 
-    def switch_profile!(profile = :main)
+    def current_menu
+      @current_menu || []
+    end
+
+    def switch_profile!(profile = :main, options = {})
       profile = profile.to_sym
       if profiles[profile]
         if current_profile != profiles[profile]
           self.current_profile = profiles[profile]
-          self.current_menu = root_menu
+          self.root_menu = ( options[:lock_menu] && root_menu ) || current_profile[:items]
+          self.current_menu = ( options[:lock_menu] && current_menu ) || root_menu.any? && root_menu || current_menu
           LOGGER.debug "Profile activated [#{current_profile[:name]}]"
           self.current_profile[:name] ||= profile
         end
@@ -64,21 +72,17 @@ module RMenu
       dmenu = dmenu_instance
       dmenu.set_params other_params
       dmenu.prompt = prompt
-      items.map! do |i|
-        i.to_item if i.respond_to? :to_item
-      end.compact!
-      items && replace_labels && items.each do |i|
-        i[:label] = replace_inline_blocks i[:label]
-      end
-      items.map! do |i|
-        i.merge label: ( i[:marked] == true ? "*#{i[:label]}*" : i[:label] )
-      end.sort_by! do |i|
-        i[:order] || 50
-      end
-      dmenu.items = items
+      items.each { |i| i[:label] = replace_inline_blocks i[:label] }
+      dmenu.items = process_labels items
       dmenu.lines = items.size if conf[:auto_size]
       item = dmenu.get_item
-      LOGGER.debug "Picked item #{item.inspect}"
+      current_menu_item = items.find { |i| i[:key] == item[:key] }
+      if current_menu_item
+        LOGGER.debug "Picked item #{current_menu_item.inspect} form menu"
+        item = current_menu_item
+      else
+        LOGGER.debug "Picked undef item #{item.inspect}"
+      end
       yield item, self if block_given?
       item
     end
@@ -200,7 +204,7 @@ module RMenu
     end
 
     def del_item(menu = current_menu, deeply = true)
-      switch_profile! :delete_item
+      switch_profile! :delete_item, lock_items: true
       item, menu = pick_item_interactive "del item", menu, deeply
       if menu.include? item
         menu.delete item
@@ -227,8 +231,7 @@ module RMenu
     alias :del :del_item
 
     def mod_conf(key = nil)
-      if key && key.strip != ""
-        key = key.to_sym
+      if key && conf.keys.include?(key)
         conf[key] = string_eval(pick_string "edit conf[#{key}]", [ { label: conf[key], key: conf[key] } ])
       else
         pick "edit key", conf.keys.map { |c| { label: c.to_s, key: c } } do |item|

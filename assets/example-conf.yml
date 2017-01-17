@@ -50,7 +50,7 @@
     - :label: "----------"
       :order: 2
       :key: 
-    - :label: "Web browser {{ conf[:web_browser].capitalize }}"
+    - :label: "Web browser @@ conf[:web_browser].capitalize @@"
       :key: "{ conf[:web_browser] }"
     - :label: Take screenshot!
       :key: scrot
