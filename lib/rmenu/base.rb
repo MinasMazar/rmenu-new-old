@@ -130,7 +130,7 @@ module RMenu
 
     def replace_tokens(cmd)
       replaced_cmd = cmd.to_s
-      while md = replaced_cmd.match(/(__(.+?)__)/)
+      while md = replaced_cmd.match(/(\$\$(.+?)\$\$)/)
         break unless md[1] || md[2]
         input = pick_string(md[2])
         return "" if input == ""
@@ -154,7 +154,7 @@ module RMenu
 
     def replace_inline_blocks(cmd)
       replaced_cmd = cmd.to_s
-      while md = replaced_cmd.match(/(\{\{([^\{\}]+?)\}\})/)
+      while md = replaced_cmd.match(/(@@(.+?)@@)/)
         break unless md[1] || md[2]
         evaluated_string = string_eval(md[2]).to_s # TODO: better to eval in a useful sandbox
         return if evaluated_string == nil
