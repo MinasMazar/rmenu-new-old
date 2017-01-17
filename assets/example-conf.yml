@@ -15,6 +15,7 @@
     :case_insensitive: true
     :background: "#334433"
     :foreground: "#00FF33"
+    :lines: 2
     :selected_background: "#EE6666"
     :selected_foreground: "#00FF33"
   :main:
@@ -32,7 +33,7 @@
       :goback: true
       :key:
       - :label: add item
-        :key: ":add_item nil, root_menu"
+        :key: ":add_item root_menu"
       - :label: mod item
         :key: ":mod_item root_menu"
       - :label: del item
@@ -45,6 +46,8 @@
         :key: :save_conf
       - :label: edit conf
         :key: ":edit_file \"#{conf[:conf_file]}\""
+      - :label: save & quit
+        :key: ": save_conf && stop"
       - :label: quit
         :key: :stop
     - :label: "----------"
@@ -55,6 +58,6 @@
     - :label: Take screenshot!
       :key: scrot
     - :label: Search on Wikipedia (it)
-      :key: https://it.wikipedia.org/w/index.php?search=__Search on Wikipedia (it)__
+      :key: https://it.wikipedia.org/w/index.php?search=$$Search on Wikipedia (it)$$
     - :label: Search on DuckDuckGo (ddg)
-      :key: https://duckduckgo.com/?q=__Search on DuckDuckGo__
+      :key: https://duckduckgo.com/?q=$$Search on DuckDuckGo$$

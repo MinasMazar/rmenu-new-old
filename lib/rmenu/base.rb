@@ -21,7 +21,6 @@ module RMenu
     def initialize(conf)
       @conf = conf
       @last_menu = []
-      @current_menu = {}
       reset_profile!
     end
 
@@ -72,8 +71,11 @@ module RMenu
       dmenu = dmenu_instance
       dmenu.set_params other_params
       dmenu.prompt = prompt
+      items.map! { |i| i.to_item if i.respond_to? :to_item }.compact!
+      items ||= []
       items.each { |i| i[:label] = replace_inline_blocks i[:label] }
       dmenu.items = process_labels items
+      binding.pry if conf[:pry]
       dmenu.lines = items.size if conf[:auto_size]
       item = dmenu.get_item
       current_menu_item = items.find { |i| i[:key] == item[:key] }
@@ -129,6 +131,7 @@ module RMenu
     end
 
     def replace_tokens(cmd)
+      return cmd if conf[:suppress_eval]
       replaced_cmd = cmd.to_s
       while md = replaced_cmd.match(/(\$\$(.+?)\$\$)/)
         break unless md[1] || md[2]
@@ -141,6 +144,7 @@ module RMenu
     end
 
     def replace_blocks(cmd)
+      return cmd if conf[:suppress_eval]
       replaced_cmd = cmd.to_s
       while md = replaced_cmd.match(/(\{([^\{\}]+?)\})/)
         break unless md[1] || md[2]
@@ -153,6 +157,7 @@ module RMenu
     end
 
     def replace_inline_blocks(cmd)
+      return cmd if conf[:suppress_eval]
       replaced_cmd = cmd.to_s
       while md = replaced_cmd.match(/(@@(.+?)@@)/)
         break unless md[1] || md[2]
@@ -170,6 +175,10 @@ module RMenu
 
     def notify(msg)
       pick msg, [], false
+      #DMenuWrapper.new(conf)
+      #dmenu_inst.prompt = msg
+      #dmenu_inst.items = []
+      #dmenu_inst.get_item
     end
 
     def back
@@ -182,21 +191,21 @@ module RMenu
       [ item, menu ]
     end
 
-    def create_item_interactive
-      label, key = pick_string("label"), pick_string("exec")
-      other_params = string_eval pick_string("other params (EVAL)")
+    def mod_item_interactive! item
+      label = pick_string("label", [ item[:label] ], false)
+      key = pick_string("exec", [ item[:key] ], false)
+      other_params = string_eval pick_string("other params (EVAL)", [], false)
       other_params = {} unless other_params.is_a? Hash
-      item = { label: label, key: key , user_defined: true, order: 50 }
       if key == "[]" || key == []
         item = create_submenu label
       end
+      item[:label], item[:key] = label.strip, key.strip
       item.merge! other_params if other_params.is_a? Hash
       item
     end
 
-    def add_item(item = create_item_interactive, menu = current_menu)
-      item = item.to_item if item.is_a? String
-      item ||= create_item_interactive
+    def add_item(menu = current_menu)
+      item = mod_item_interactive! label: "", key: ""
       return nil if item[:key] == "" && item[:label] == ""
       menu << item
       LOGGER.info "Item #{item.inspect} added to menu #{menu}"
@@ -215,12 +224,10 @@ module RMenu
     end
 
     def mod_item(menu = current_menu, deeply = true)
+      switch_profile! :delete_item, lock_items: true
       item, menu = pick_item_interactive "mod item", menu, deeply
       if menu.include? item
-        item[:label] = pick_string "label [#{item[:label]}]", [ item[:label] ]
-        item[:key] = pick_string "exec", [ item[:key] ]
-        other_params = string_eval pick_string("other_params (EVAL)")
-        item.merge! other_params if other_params.is_a? Hash
+        mod_item_interactive! item
         LOGGER.info "Item updated #{item.inspect}"
         item
       end
@@ -231,11 +238,12 @@ module RMenu
     alias :del :del_item
 
     def mod_conf(key = nil)
-      if key && conf.keys.include?(key)
+      if key && key.is_a?(Symbol)
         conf[key] = string_eval(pick_string "edit conf[#{key}]", [ { label: conf[key], key: conf[key] } ])
       else
-        pick "edit key", conf.keys.map { |c| { label: c.to_s, key: c } } do |item|
-          mod_conf item[:key]
+        pick "mod conf", conf.keys.map { |c| { label: c.to_s, key: c } } do |item|
+          break if item[:key].to_s.strip.empty?
+          mod_conf item[:key].to_s.sub(/^:/,'').to_sym
         end
       end
     end
@@ -247,7 +255,7 @@ module RMenu
 
     def load_conf(conf_file = conf[:conf_file])
       self.conf = YAML.load_file conf_file
-      reset_menu!
+      reset_profile!
       LOGGER.info "Confuration loaded from #{conf[:conf_file]}"
     end
 
@@ -262,6 +270,14 @@ module RMenu
     def string_eval(str)
       LOGGER.debug "Evaluating string [#{str}]"
       catch_and_notify_exception { instance_eval str }
+    end
+
+    def suppress_eval
+      conf[:suppress_eval] = true
+      if block_given?
+        yield
+        conf[:suppress_eval] = false
+      end
     end
 
     def system_exec(*cmd)
@@ -287,10 +303,10 @@ module RMenu
         yield
       rescue StandardError => e
         LOGGER.debug "Exception catched[#{msg || e.message}] #{e.inspect} at #{e.backtrace.join("\n")}"
-        notify "Exception catched: #{msg || e.message}"
+        suppress_eval { notify "Exception catched: #{msg || e.message}" }
       rescue SyntaxError => se
         LOGGER.debug "Exception catched[#{msg || se.message}] #{se.inspect} at #{se.backtrace.join("\n")}"
-        notify "Exception catched: #{msg || se.message}"
+        suppress_eval { notify "Exception catched: #{msg || se.message}" }
       end
     end
 
