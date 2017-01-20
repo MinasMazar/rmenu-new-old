@@ -113,15 +113,18 @@ module RMenu
           str = replace_blocks str
           if md = str.match(/^\s*(http(s?):\/\/.+)/)
             open_url md[1]
-          elsif md = str.match(/^\s*(!{1,2})\s*(.+)/)
-            term_exec = str.match(/;\s*$/)
+          elsif md = str.match(/^\s*(!{1,2}|;)\s*(.+)$/)
             cmd = [ ]
-            cmd << conf[:terminal_exec] if term_exec
-            cmd << md[2]
-            if md[1] == "!"
-              system_exec cmd
-            elsif md[1] == "!!"
+            if md[1] == ";"
+              cmd << conf[:terminal_exec] if md[1] == ";"
+              cmd << "\"#{ md[2] }\""
+            else
+              cmd << md[2]
+            end
+            if md[1] == "!!"
               notify system_exec_and_get_output cmd
+            elsif md[1] == "!" || md[1] == ";"
+              system_exec cmd
             end
           elsif str != ""
             proc key: "!#{str}" if conf[:force_exec]
