@@ -107,7 +107,8 @@ module RMenu
         back if item[:goback]
       elsif item[:key].is_a?(String) && item[:key].strip != ""
         if md = item[:key].match(/^\s*:\s*(.+)/)
-          string_eval md[1]
+          str = replace_blocks md[1]
+          string_eval str
         else
           str = replace_tokens item[:key]
           str = replace_blocks str
